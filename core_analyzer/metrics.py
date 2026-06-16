@@ -20,9 +20,10 @@ DECISION_NODES = (
 class CyclomaticComplexityVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
         self.scores: dict[str, int] = {}
-        self._current_func: str | None = None
-        self._counter: int = 0
+        self._func_stack: list[str] = []
         self._class_stack: list[str] = []
+        self._counter_stack: list[int] = []
+        self._counter: int = 0
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         self._enter_function(node.name)
@@ -40,18 +41,18 @@ class CyclomaticComplexityVisitor(ast.NodeVisitor):
         self._class_stack.pop()
 
     def _enter_function(self, name: str) -> None:
-        qualname = ".".join([*self._class_stack, name]) if self._class_stack else name
-        self._current_func = qualname
+        self._counter_stack.append(self._counter)
+        self._func_stack.append(name)
         self._counter = 1
 
     def _exit_function(self) -> None:
-        if self._current_func:
-            self.scores[self._current_func] = self._counter
-        self._current_func = None
-        self._counter = 0
+        qualname = ".".join([*self._class_stack, *self._func_stack])
+        self.scores[qualname] = self._counter
+        self._func_stack.pop()
+        self._counter = self._counter_stack.pop()
 
     def visit(self, node: ast.AST) -> None:
-        if isinstance(node, DECISION_NODES) and self._current_func is not None:
+        if isinstance(node, DECISION_NODES) and self._func_stack:
             self._counter += 1
         super().visit(node)
 
