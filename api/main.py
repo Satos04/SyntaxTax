@@ -3,24 +3,24 @@ import hashlib
 import hmac
 import json
 import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
-from arq import create_pool
 from api.database import get_latest_reports_by_org, get_report_by_delivery_id
-from api.worker import REDIS_SETTINGS
+from api.worker import run_analysis_job
 from fastapi import FastAPI, HTTPException, Request
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    try:
-        pool = await create_pool(REDIS_SETTINGS)
-        app.state.redis = pool
-    except Exception:
-        app.state.redis = None
+    app.state.executor = ThreadPoolExecutor(
+        max_workers=int(os.getenv("MAX_JOBS_PER_WORKER", "4"))
+    )
+    app.state.job_status = {}
+    app.state.status_lock = threading.Lock()
     yield
-    if app.state.redis is not None:
-        await app.state.redis.close()
+    app.state.executor.shutdown(wait=False)
 
 
 app = FastAPI(title="SyntaxTax API", version="0.1.0", lifespan=lifespan)
@@ -71,25 +71,22 @@ async def github_webhook(request: Request):
         github_org_id = owner.get("id", 0)
         org_name = owner.get("login", "unknown")
 
-    if request.app.state.redis is None:
-        raise HTTPException(status_code=503, detail="Redis not available")
+    with request.app.state.status_lock:
+        request.app.state.job_status[delivery_id] = {
+            "status": "queued",
+            "delivery_id": delivery_id,
+        }
 
-    job = await request.app.state.redis.enqueue_job(
-        "run_analysis_job",
+    request.app.state.executor.submit(
+        run_analysis_job,
+        request.app.state.job_status,
+        request.app.state.status_lock,
         clone_url,
         delivery_id,
         repo_name,
         github_org_id,
         org_name,
     )
-
-    if job:
-        await request.app.state.redis.set(
-            f"syntaxtax:status:{delivery_id}",
-            json.dumps({"status": "queued", "delivery_id": delivery_id}),
-            ex=3600,
-            nx=True,
-        )
 
     return {"status": "accepted", "delivery_id": delivery_id}
 
@@ -108,11 +105,9 @@ async def get_result(delivery_id: str, request: Request):
     if report is not None:
         return report
 
-    if request.app.state.redis is not None:
-        status_raw = await request.app.state.redis.get(
-            f"syntaxtax:status:{delivery_id}"
-        )
-        if status_raw:
-            return json.loads(status_raw)
+    with request.app.state.status_lock:
+        status = request.app.state.job_status.get(delivery_id)
+    if status:
+        return status
 
     raise HTTPException(status_code=404, detail="No report or job found for this delivery ID")
