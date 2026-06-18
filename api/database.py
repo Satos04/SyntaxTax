@@ -48,3 +48,16 @@ def save_report(
             "report_data": report_data,
         }
     ).execute()
+
+
+def get_report_by_delivery_id(delivery_id: str) -> dict | None:
+    client = get_client()
+    result = (
+        client.table("financial_reports")
+        .select("*")
+        .eq("github_delivery_id", delivery_id)
+        .execute()
+    )
+    if not result.data:
+        return None
+    return result.data[0]

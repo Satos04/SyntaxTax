@@ -1,52 +1,31 @@
+import asyncio
 import hashlib
 import hmac
 import json
 import os
-import shutil
-import subprocess
-import tempfile
-from asyncio import get_event_loop
-from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 
-from core_analyzer.financial_model import compute_financial_impact
-from api.database import save_report, upsert_organization
+from arq import create_pool
+from api.database import get_report_by_delivery_id
+from api.worker import REDIS_SETTINGS
 from fastapi import FastAPI, HTTPException, Request
 
-app = FastAPI(title="SyntaxTax API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        pool = await create_pool(REDIS_SETTINGS)
+        app.state.redis = pool
+    except Exception:
+        app.state.redis = None
+    yield
+    if app.state.redis is not None:
+        await app.state.redis.close()
+
+
+app = FastAPI(title="SyntaxTax API", version="0.1.0", lifespan=lifespan)
 
 WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
-_executor = ThreadPoolExecutor(max_workers=4)
-analysis_results: dict[str, dict] = {}
-
-
-def run_analysis(
-    clone_url: str,
-    delivery_id: str,
-    repo_name: str,
-    github_org_id: int,
-    org_name: str,
-) -> None:
-    temp_dir = tempfile.mkdtemp(prefix="syntaxtax_")
-    try:
-        subprocess.run(
-            ["git", "clone", clone_url, temp_dir],
-            capture_output=True, text=True, check=True,
-        )
-        report = compute_financial_impact(temp_dir)
-        org_uuid = upsert_organization(github_org_id, org_name)
-        save_report(org_uuid, delivery_id, repo_name, report)
-        analysis_results[delivery_id] = {"status": "done", "result": report}
-    except subprocess.CalledProcessError as e:
-        stderr = e.stderr.strip()
-        analysis_results[delivery_id] = {
-            "status": "error", "detail": f"Git clone failed: {stderr}"
-        }
-    except Exception as e:
-        analysis_results[delivery_id] = {
-            "status": "error", "detail": str(e)
-        }
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 @app.get("/ping")
@@ -92,11 +71,40 @@ async def github_webhook(request: Request):
         github_org_id = owner.get("id", 0)
         org_name = owner.get("login", "unknown")
 
-    analysis_results[delivery_id] = {"status": "pending"}
-    loop = get_event_loop()
-    loop.run_in_executor(
-        _executor, run_analysis,
-        clone_url, delivery_id, repo_name, github_org_id, org_name,
+    if request.app.state.redis is None:
+        raise HTTPException(status_code=503, detail="Redis not available")
+
+    job = await request.app.state.redis.enqueue_job(
+        "run_analysis_job",
+        clone_url,
+        delivery_id,
+        repo_name,
+        github_org_id,
+        org_name,
     )
 
+    if job:
+        await request.app.state.redis.set(
+            f"syntaxtax:status:{delivery_id}",
+            json.dumps({"status": "queued", "delivery_id": delivery_id}),
+            ex=3600,
+            nx=True,
+        )
+
     return {"status": "accepted", "delivery_id": delivery_id}
+
+
+@app.get("/results/{delivery_id}")
+async def get_result(delivery_id: str, request: Request):
+    report = await asyncio.to_thread(get_report_by_delivery_id, delivery_id)
+    if report is not None:
+        return report
+
+    if request.app.state.redis is not None:
+        status_raw = await request.app.state.redis.get(
+            f"syntaxtax:status:{delivery_id}"
+        )
+        if status_raw:
+            return json.loads(status_raw)
+
+    raise HTTPException(status_code=404, detail="No report or job found for this delivery ID")

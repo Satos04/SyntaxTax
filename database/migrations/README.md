@@ -1,37 +1,37 @@
-# Migraciones de Base de Datos
+# Database Migrations
 
-Este directorio contiene las migraciones SQL para el esquema de Supabase (PostgreSQL).
+This directory contains SQL migrations for the Supabase (PostgreSQL) schema.
 
-## Convención
+## Conventions
 
-- Los archivos se nombran con el formato `NNN_descripcion.sql`
-- `NNN` es un número de secuencia de 3 dígitos (001, 002, ...)
-- Las migraciones son acumulativas e inmutables: una vez aplicadas, **no se editan**. Los cambios nuevos van en un archivo nuevo.
+- Files are named `NNN_description.sql`
+- `NNN` is a zero-padded sequence number (001, 002, ...)
+- Migrations are cumulative and **immutable**: once applied, do not edit them. New changes go in a new file.
 
-## Cómo aplicar migraciones
+## How to apply migrations
 
-### Opción 1: SQL Editor de Supabase (recomendado para desarrollo)
+### Option 1: Supabase SQL Editor (recommended for development)
 
-Abrir el archivo SQL, copiar su contenido y pegarlo en el SQL Editor del Dashboard de Supabase.
+Open the SQL file, copy its contents, and paste into the Supabase Dashboard SQL Editor.
 
-### Opción 2: CLI de Supabase
+### Option 2: Supabase CLI
 
 ```bash
 supabase db push
 ```
 
-### Opción 3: psql directo
+### Option 3: Direct psql
 
 ```bash
 psql "$SUPABASE_DATABASE_URL" -f database/migrations/001_create_organizations_and_reports.sql
 ```
 
-## Variables de entorno necesarias
+## Required environment variables
 
-| Variable | Descripción |
+| Variable | Description |
 |---|---|
-| `SUPABASE_URL` | URL del proyecto Supabase (ej. `https://xxxxx.supabase.co`) |
-| `SUPABASE_SERVICE_ROLE_KEY` | Clave `service_role` para operaciones desde el backend |
-| `SUPABASE_DATABASE_URL` | Connection string directo a PostgreSQL (para psql) |
+| `SUPABASE_URL` | Supabase project URL (e.g. `https://xxxxx.supabase.co`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | `service_role` key for backend operations |
+| `SUPABASE_DATABASE_URL` | Direct PostgreSQL connection string (for psql) |
 
-Ver `.env.example` en la raíz del proyecto.
+See `.env.example` in the project root.
