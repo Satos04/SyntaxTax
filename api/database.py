@@ -61,3 +61,33 @@ def get_report_by_delivery_id(delivery_id: str) -> dict | None:
     if not result.data:
         return None
     return result.data[0]
+
+
+def get_latest_reports_by_org(github_org_id: int) -> list[dict]:
+    client = get_client()
+    org_result = (
+        client.table("organizations")
+        .select("id")
+        .eq("github_organization_id", github_org_id)
+        .execute()
+    )
+    if not org_result.data:
+        return []
+
+    org_uuid = org_result.data[0]["id"]
+    reports_result = (
+        client.table("financial_reports")
+        .select("*")
+        .eq("organization_id", org_uuid)
+        .order("created_at", desc=True)
+        .execute()
+    )
+
+    seen: set[str] = set()
+    latest: list[dict] = []
+    for r in reports_result.data:
+        repo = r["repository_name"]
+        if repo not in seen:
+            seen.add(repo)
+            latest.append(r)
+    return latest
