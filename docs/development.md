@@ -94,6 +94,28 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 python -m api.run_worker
 ```
 
+## Streamlit Dashboard
+
+The dashboard is a Streamlit app that consumes the API. It shows cost metrics per repository and an interactive table of critical functions.
+
+With Docker (4 services now):
+
+```bash
+docker compose up --build
+```
+
+The dashboard is at `http://localhost:8501`.
+
+Without Docker:
+
+```bash
+# Install dependencies (one time)
+pip install streamlit requests plotly
+
+# Start the API and worker first, then:
+API_BASE_URL=http://localhost:8000 streamlit run dashboard/app.py
+```
+
 ## Running tests
 
 ```bash
