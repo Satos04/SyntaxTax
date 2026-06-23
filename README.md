@@ -7,18 +7,30 @@ CTOs and engineering managers use SyntaxTax to measure the monetary cost of main
 ## Architecture
 
 ```
-GitHub Webhook ──► FastAPI ──► ARQ/Redis ──► Worker ──► Supabase
-                      │                        │
-                      └── GET /results/{id}  ◄──┘  (polling)
+GitHub Webhook ──► FastAPI ──► ThreadPoolExecutor ──► Supabase
+                       │                  │
+                       └── GET /results/{id}  ◄──────┘  (in-process)
 ```
 
 1. A GitHub push/PR event hits `POST /webhook/github`
-2. The API validates the HMAC signature and enqueues an analysis job in Redis via ARQ
-3. A background worker picks up the job, clones the repo, runs the static analyzer
+2. The API validates the HMAC signature and submits the analysis to a `ThreadPoolExecutor`
+3. The inline worker clones the repo and runs the static analyzer (parser → complexity → churn → cost)
 4. The financial report is persisted to Supabase
-5. Clients poll `GET /results/{delivery_id}` — returns `queued` → `running` → report or `failed`
+5. Clients poll `GET /results/{delivery_id}` — returns `queued` → report or `failed`
 
-## Quick start
+## Production deployment
+
+The project is live at **http://167.233.205.63**.
+
+| Endpoint | URL | Auth |
+|----------|-----|------|
+| API health | http://167.233.205.63/ping | None |
+| Dashboard | http://167.233.205.63/dashboard/ | Basic Auth |
+| API docs | http://167.233.205.63/docs | None |
+
+To view results, install the GitHub App on a repository and make a push. Then visit the **Dashboard** and enter your GitHub organization ID to see the financial report.
+
+## Quick start (local development)
 
 ```bash
 cp .env.example .env
@@ -27,22 +39,26 @@ docker compose up --build
 ```
 
 The API is available at `http://localhost:8000`. Docs at `http://localhost:8000/docs`.
+The Dashboard is available at `http://localhost:8501`.
 
 ## Project structure
 
 ```
 ├── api/                    # FastAPI application
-│   ├── main.py             # App, lifespan, endpoints
+│   ├── main.py             # App, lifespan, ThreadPoolExecutor, endpoints
 │   ├── database.py         # Supabase client + CRUD
-│   ├── worker.py           # ARQ job definition + WorkerSettings
-│   └── run_worker.py       # Worker entrypoint
+│   └── worker.py           # Analysis job (runs in ThreadPoolExecutor)
 ├── core_analyzer/          # Static analysis engine (network-free)
 │   ├── parser.py           # AST parsing
 │   ├── metrics.py          # Cyclomatic complexity, line metrics
 │   └── financial_model.py  # Churn × complexity → cost
+├── dashboard/              # Streamlit web dashboard
+│   └── app.py              # Metrics, charts, critical functions table
 ├── database/migrations/    # Supabase SQL migrations
 ├── Dockerfile              # Multi-stage build
-├── docker-compose.yml      # Redis + API + Worker
+├── docker-compose.yml      # API + Dashboard (dev)
+├── docker-compose.prod.yml # Production with Caddy reverse proxy
+├── Caddyfile               # Caddy config (Basic Auth on /dashboard/)
 └── docs/                   # Documentation
 ```
 
@@ -51,9 +67,11 @@ The API is available at `http://localhost:8000`. Docs at `http://localhost:8000/
 | Layer | Technology |
 |---|---|
 | API | FastAPI (Python 3.12) |
-| Queue | ARQ + Redis 7 |
+| Async worker | ThreadPoolExecutor (in-process, no Redis) |
 | Database | PostgreSQL via Supabase |
 | Analyzer | Native `ast` module |
+| Dashboard | Streamlit + Plotly |
+| Reverse proxy | Caddy (auto HTTPS, Basic Auth) |
 | Container | Docker + Docker Compose |
 
 ## Documentation
@@ -62,4 +80,5 @@ The API is available at `http://localhost:8000`. Docs at `http://localhost:8000/
 - [API reference](docs/api_reference.md)
 - [Core analyzer guide](docs/core_analyzer_guide.md)
 - [Development setup](docs/development.md)
+- [Deployment guide](docs/deployment.md)
 - [Database migrations](database/migrations/README.md)
