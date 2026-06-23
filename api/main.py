@@ -71,6 +71,11 @@ async def github_webhook(request: Request):
         github_org_id = owner.get("id", 0)
         org_name = owner.get("login", "unknown")
 
+    installation_id: int | None = None
+    installation = payload.get("installation")
+    if installation:
+        installation_id = installation["id"]
+
     with request.app.state.status_lock:
         request.app.state.job_status[delivery_id] = {
             "status": "queued",
@@ -86,6 +91,7 @@ async def github_webhook(request: Request):
         repo_name,
         github_org_id,
         org_name,
+        installation_id,
     )
 
     return {"status": "accepted", "delivery_id": delivery_id}
