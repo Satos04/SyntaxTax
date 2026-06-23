@@ -1,5 +1,5 @@
 :80 {
-    basicauth /dashboard* {
+    basic_auth /dashboard* {
         {$DASHBOARD_USER} {$DASHBOARD_PASSWORD_HASH}
     }
 
