@@ -7,7 +7,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 
-from api.database import get_latest_reports_by_org, get_report_by_delivery_id
+from api.database import get_latest_reports_by_org_name, get_report_by_delivery_id
 from api.worker import run_analysis_job
 from fastapi import FastAPI, HTTPException, Request
 
@@ -91,9 +91,9 @@ async def github_webhook(request: Request):
     return {"status": "accepted", "delivery_id": delivery_id}
 
 
-@app.get("/api/reports/{org_id}")
-async def get_org_reports(org_id: int):
-    reports = await asyncio.to_thread(get_latest_reports_by_org, org_id)
+@app.get("/api/reports/{org_name}")
+async def get_org_reports(org_name: str):
+    reports = await asyncio.to_thread(get_latest_reports_by_org_name, org_name)
     if not reports:
         raise HTTPException(status_code=404, detail="No reports found")
     return reports

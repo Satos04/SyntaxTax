@@ -10,7 +10,7 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 st.set_page_config(page_title="SyntaxTax", layout="wide")
 st.title("SyntaxTax — Technical Debt Dashboard")
 
-org_id = st.sidebar.text_input("GitHub Organization ID", value="")
+org_id = st.sidebar.text_input("GitHub Organization name", value="")
 st.sidebar.button("Refresh data")
 
 
@@ -23,7 +23,7 @@ def fetch_reports(org_id: str) -> list[dict]:
 
 
 if not org_id:
-    st.info("Enter a GitHub Organization ID in the sidebar to get started.")
+    st.info("Enter a GitHub Organization name in the sidebar (e.g. your GitHub username).")
     st.stop()
 
 try:

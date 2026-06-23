@@ -63,12 +63,12 @@ def get_report_by_delivery_id(delivery_id: str) -> dict | None:
     return result.data[0]
 
 
-def get_latest_reports_by_org(github_org_id: int) -> list[dict]:
+def get_latest_reports_by_org_name(org_name: str) -> list[dict]:
     client = get_client()
     org_result = (
         client.table("organizations")
         .select("id")
-        .eq("github_organization_id", github_org_id)
+        .eq("name", org_name)
         .execute()
     )
     if not org_result.data:
