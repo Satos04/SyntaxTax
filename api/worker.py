@@ -5,6 +5,7 @@ import tempfile
 import threading
 
 from api.database import save_report, upsert_organization
+from api.github_auth import get_installation_token, patch_clone_url
 from core_analyzer.financial_model import compute_financial_impact
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,7 @@ def run_analysis_job(
     repo_name: str,
     github_org_id: int,
     org_name: str,
+    installation_id: int | None = None,
 ) -> None:
     logger.info("Starting analysis for delivery_id=%s repo=%s", delivery_id, repo_name)
     with status_lock:
@@ -25,6 +27,14 @@ def run_analysis_job(
 
     temp_dir = tempfile.mkdtemp(prefix="syntaxtax_")
     try:
+        if installation_id is not None:
+            token = get_installation_token(installation_id)
+            if token:
+                clone_url = patch_clone_url(clone_url, token)
+                logger.info("Using installation token for authentication")
+            else:
+                logger.warning("No token obtained, cloning without auth")
+
         logger.info("Cloning %s into %s", clone_url, temp_dir)
         result = subprocess.run(
             ["git", "clone", clone_url, temp_dir],
