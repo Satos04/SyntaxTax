@@ -28,7 +28,7 @@ The project is live at **http://167.233.205.63**.
 | Dashboard | http://167.233.205.63/dashboard/ | Basic Auth |
 | API docs | http://167.233.205.63/docs | None |
 
-To view results, install the GitHub App on a repository and make a push. Then visit the **Dashboard** and enter your GitHub organization ID to see the financial report.
+To view results, install the GitHub App on a repository and make a push. Then visit the **Dashboard** and enter your GitHub organization ID to see the financial report :D.
 
 ## Quick start (local development)
 
