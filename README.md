@@ -18,17 +18,19 @@ GitHub Webhook ──► FastAPI ──► ThreadPoolExecutor ──► Supabase
 4. The financial report is persisted to Supabase
 5. Clients poll `GET /results/{delivery_id}` — returns `queued` → report or `failed`
 
-## Production deployment
+## Key features
 
-The project is live at **http://167.233.205.63**.
+- **Debt in euros, not abstract scores:** every function gets a maintenance cost estimate (default €65/h per change).
+- **Churn × complexity:** correlates `git log --follow` change frequency with cyclomatic complexity from the AST, so the costliest hotspots are the functions that are both complex *and* changed often.
+- **Webhook-driven:** a GitHub App triggers an analysis on every push, with HMAC signature validation and support for private repositories.
+- **Network-free core:** `core_analyzer/` only receives local paths and never imports from `api/`, which keeps it easy to test and reuse.
+- **Read-only dashboard:** Streamlit + Plotly view with metrics, charts and a table of critical functions.
 
-| Endpoint | URL | Auth |
-|----------|-----|------|
-| API health | http://167.233.205.63/ping | None |
-| Dashboard | http://167.233.205.63/dashboard/ | Basic Auth |
-| API docs | http://167.233.205.63/docs | None |
+## Deployment status
 
-To view results, install the GitHub App on a repository and make a push. Then visit the **Dashboard** and enter your GitHub organization ID to see the financial report :D.
+> **The production server is no longer running.** The project was deployed on a VPS behind a Caddy reverse proxy (automatic HTTPS, Basic Auth on the dashboard), but I shut it down to save costs. The public URLs are offline.
+
+The deployment setup is still in the repo and reproducible: `docker-compose.prod.yml` and the `Caddyfile` describe the full production stack (see the [deployment guide](docs/deployment.md)). To run it yourself you need your own Supabase project and a GitHub App.
 
 ## Quick start (local development)
 
